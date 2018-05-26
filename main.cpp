@@ -19,7 +19,7 @@ Model *model = NULL;
 TGAImage *texture = NULL;
 
 void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color);
-void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, TGAImage &image, TGAColor color);
+void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, TGAImage &image, float intensity);
 
 
 int main(int argc, char** argv) {
@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
 		texture->read_tga_file("obj/african_head_diffuse.tga");	
 	}
 	
-	Vec3f light = Vec3f(0, 0, -1);
+	Vec3f light = Vec3f(0, 1, -1);
 	light.normalize();
 	// Model rendering
 	for (int i=0; i<model->nfaces(); i++){
@@ -61,9 +61,9 @@ int main(int argc, char** argv) {
 		Vec3f normal = cross(world_coords[2]-world_coords[0],world_coords[1]-world_coords[0]);
 		normal.normalize();
 		float intensity = normal*light;
-		TGAColor faceCol = TGAColor(intensity*255, intensity*255, intensity*255, 255);
+		//TGAColor faceCol = TGAColor(intensity*255, intensity*255, intensity*255, 255);
 		if(intensity > 0)
-			triangle(screen_coords, zBuffer, tex_coords, *texture, image, faceCol);
+			triangle(screen_coords, zBuffer, tex_coords, *texture, image, intensity);
 	}
 	
 
@@ -92,7 +92,16 @@ Vec3f barycentric(Vec3f *pts, Vec3f P){
 	return Vec3f(-1, 1, 1);
 }
 
-void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, TGAImage &image, TGAColor color){
+Vec2f bary2Cart(Vec2f *texCoords, Vec3f bary){
+	Vec2f p;
+	for (int i=0; i<3; i++){
+		p.x += bary[i]*texCoords[i].x;
+		p.y += bary[i]*texCoords[i].y;
+	}
+	return p;
+}
+
+void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, TGAImage &image, float intensity){
 
 	Vec2f boxMin(image.get_width() - 1, image.get_height() - 1);
 	Vec2f boxMax(0,0);
@@ -118,8 +127,10 @@ void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, T
 				p.z += pts[i].z*bary[i];
 			if(zBuffer[int(p.x+p.y*WIDTH)] <= p.z){
 				zBuffer[int(p.x+p.y*WIDTH)] = p.z;
-				// figure color
-				TGAColor tex_color = texture.get(int(texCoords[0].x*texture.get_width()),int(texCoords[0].y*texture.get_height()));
+				// figure color. Use bary coords in texture space to interp
+				Vec2f uv = bary2Cart(texCoords, bary);
+				TGAColor tex_color = texture.get(int((1-uv.x)*texture.get_width()),int((1-uv.y)*texture.get_height()));
+				tex_color.r *= intensity; tex_color.g *= intensity; tex_color.b*=intensity;
 				image.set(p.x,p.y,tex_color);
 			}
 		}
