@@ -11,8 +11,8 @@ const TGAColor WHITE = TGAColor(255, 255, 255, 255);
 const TGAColor RED   = TGAColor(255, 0,   0,   255);
 const TGAColor GREEN = TGAColor(0, 255, 0, 255);
 const TGAColor BLUE = TGAColor(0, 0, 255, 255);
-const int WIDTH = 200;
-const int HEIGHT = 200;
+const int WIDTH = 700;
+const int HEIGHT = 700;
 
 Model *model = NULL;
 
@@ -27,17 +27,26 @@ int main(int argc, char** argv) {
 	else{
 		model = new Model("obj/african_head.obj");
 	}
-
+	
+	Vec3f light = Vec3f(0, 0, -1);
+	light.normalize();
 	// Model rendering
 	for (int i=0; i<model->nfaces(); i++){
 		//printf("%d\n",i);
 		std::vector<int> face = model->face(i);
 		Vec2i screen_coords[3];
+		Vec3f world_coords[3];
 		for (int j=0; j<3; j++){
 			Vec3f fv = model->vert(face[j]); // face vert
 			screen_coords[j] = Vec2i((fv.x+1) * WIDTH/2, (fv.y+1) * HEIGHT/2);
+			world_coords[j] = fv;
 		}
-		triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(rand()%255, rand()%255, rand()%255,255));	
+		Vec3f normal = (world_coords[2]-world_coords[0])^(world_coords[1]-world_coords[0]);
+		normal.normalize();
+		float intensity = normal*light;
+		TGAColor faceCol = TGAColor(intensity*255, intensity*255, intensity*255, 255);
+		if(intensity > 0)
+			triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, faceCol);
 	}
 	
 
