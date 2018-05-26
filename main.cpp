@@ -1,5 +1,7 @@
 #include <complex>
 #include <vector>
+#include <cmath>
+#include <cstdlib>
 
 #include "tgaimage.h"
 #include "model.h"
@@ -26,66 +28,77 @@ int main(int argc, char** argv) {
 		model = new Model("obj/african_head.obj");
 	}
 
-	Vec2i t0[3] = {Vec2i(10, 70), Vec2i(50, 160), Vec2i(70, 80)};
-	Vec2i t1[3] = {Vec2i(180, 50), Vec2i(150,1), Vec2i(70,180)};
-	Vec2i t2[3] = {Vec2i(180, 150), Vec2i(120, 160), Vec2i(130, 180)};
-	triangle(t0[0], t0[1], t0[2], image, RED);
-	triangle(t1[0], t1[1], t1[2], image, GREEN);
-	triangle(t2[0], t2[1], t2[2], image, BLUE);
-	
 	// Model rendering
-	/*
 	for (int i=0; i<model->nfaces(); i++){
+		//printf("%d\n",i);
 		std::vector<int> face = model->face(i);
+		Vec2i screen_coords[3];
 		for (int j=0; j<3; j++){
-			Vec3f v0 = model->vert(face[j]);
-			Vec3f v1 = model->vert(face[(j+1)%3]);
-			int x0 = (v0.x+1) * WIDTH/2;
-			int y0 = (v0.y+1) * HEIGHT/2;
-			int x1 = (v1.x+1) * WIDTH/2;
-			int y1 = (v1.y+1) * HEIGHT/2;
-			line(x0, y0, x1, y1, image, white);
-		
-		}	
+			Vec3f fv = model->vert(face[j]); // face vert
+			screen_coords[j] = Vec2i((fv.x+1) * WIDTH/2, (fv.y+1) * HEIGHT/2);
+		}
+		triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(rand()%255, rand()%255, rand()%255,255));	
 	}
-	*/
+	
+
+	
 
 	image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
 	image.write_tga_file("output.tga");
 	delete model;
 	return 0;
 }
+/*
+Vec3f barycentric(Vec2i *pts, Vec2i P){
+	// Get barycentric coords of point P on triangle given by pts
+	// (1-u-v, u, v)
+	Vec3f a = Vec3f(pts[2][0] - pts[0][0], pts[1][0] - pts[0][0], pts[0][0] - P[0]);
+	Vec3f b = Vec3f(pts[2][1] - pts[0][1], pts[1][1] - pts[0][1], pts[0][1] - P[1]);
+	
+	// Solve linear system with cross prod.
+	Vec3f u = cross(a, b);
+	// Get (u, v, 1)
 
+	// if u[2] < 1, degenerate case, else normalize & return
+	if(std::abs(u.z) < 1)
+		return Vec3f(-1, 1, 1);
+	else
+		return Vec3f(1. - (u.x + u.y)/u.z, u.x/u.z, u.x/u.z);
+
+}
+
+void triangle2(Vec2i *pts, TGAImage &image, TGAColor color){
+	Vec2i boxMin(image.get_width() - 1, image.get_height() - 1);
+	Vec2i boxMax(0,0);
+	Vec2i clamp(image.get_width)
+
+}
+*/
 void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color){
 	// Sort verts by y coord
 	// t0 smallest
 	
-	if(t0.y > t1.y){
+	if(t0.y > t1.y)
 		std::swap(t0, t1);
-	}
-	if(t0.y > t2.y){
+	if(t0.y > t2.y)
 		std::swap(t0, t2);
-	}
-	if(t1.y > t2.y){
+	if(t1.y > t2.y)
 		std::swap(t1, t2);
-	}
-
 	
 	// We use Bressenham's algo on two lines at once.
 	// First up to t1, then to t2.
 
 	for(int y = t0.y; y <= t1.y; y++){
-		float t_t1 = (y-t0.y) / (float)(t1.y-t0.y);
-		float t_t2 = (y-t0.y) / (float)(t2.y-t0.y);
+		float t_t1 = (y-t0.y) / (float)(t1.y-t0.y + .01);
+		float t_t2 = (y-t0.y) / (float)(t2.y-t0.y + .01);
 		int x_t1 = t0.x*(1.-t_t1) + t1.x*t_t1; 
 		int x_t2 = t0.x*(1.-t_t2) + t2.x*t_t2;	
 		int xLeft = x_t2;
 		int xRight = x_t1;
 		
 		// Need to fill in the right direction!
-		if(t1.x < t0.x){
+		if(xRight < xLeft)
 			std::swap(xLeft,xRight);
-		}
 		// Fill in w/ horiz line
 		for (int xWalk = xLeft; xWalk <= xRight; xWalk++){
 			image.set(xWalk, y, color);
@@ -93,15 +106,14 @@ void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color){
 	}
 
 	for(int y = t1.y; y <= t2.y; y++){
-		float t_t1 = (y-t1.y) / (float)(t2.y-t1.y);
-		float t_t2 = (y-t0.y) / (float)(t2.y-t0.y);
+		float t_t1 = (y-t1.y) / (float)(t2.y-t1.y + .01);
+		float t_t2 = (y-t0.y) / (float)(t2.y-t0.y + .01);
 		int x_t1 = t1.x*(1.-t_t1) + t2.x*t_t1;
 		int x_t2 = t0.x*(1.-t_t2) + t2.x*t_t2;	
 		int xLeft = x_t2;
 		int xRight = x_t1;
-		if(t1.x < t0.x){
+		if(xRight < xLeft)
 			std::swap(xLeft,xRight);
-		}
 		// Fill in w/ horiz line
 		for (int xWalk = xLeft; xWalk <= xRight; xWalk++){
 			image.set(xWalk, y, color);
