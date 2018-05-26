@@ -16,14 +16,14 @@ const int WIDTH = 1000;
 const int HEIGHT = 1000;
 
 Model *model = NULL;
+TGAImage *texture = NULL;
 
 void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color);
-void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color);
+void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, TGAImage &image, TGAColor color);
 
 
 int main(int argc, char** argv) {
 	TGAImage image(WIDTH, HEIGHT, TGAImage::RGB);
-	
 	// init zBuffer
 	float *zBuffer = new float[WIDTH*HEIGHT];
 	for(int i = 0; i < WIDTH*HEIGHT; i++){
@@ -35,6 +35,8 @@ int main(int argc, char** argv) {
 	}
 	else{
 		model = new Model("obj/african_head.obj");
+		texture = new TGAImage();
+		texture->read_tga_file("obj/african_head_diffuse.tga");	
 	}
 	
 	Vec3f light = Vec3f(0, 0, -1);
@@ -43,19 +45,25 @@ int main(int argc, char** argv) {
 	for (int i=0; i<model->nfaces(); i++){
 		//printf("%d\n",i);
 		std::vector<int> face = model->face(i);
+		std::vector<int> faceTex = model->face_tex(i);
 		Vec3f screen_coords[3];
 		Vec3f world_coords[3];
+		Vec2f tex_coords[3];
+	//	printf("%d\n", face_tex[0]);
 		for (int j=0; j<3; j++){
 			Vec3f fv = model->vert(face[j]); // face vert
+			Vec2f tv = model->texCoord(faceTex[j]);
 			screen_coords[j] = Vec3f(int((fv.x+1.) * WIDTH/2.), int((fv.y+1.) * HEIGHT/2.), fv.z);
 			world_coords[j] = fv;
+			tex_coords[j] = tv;
+			//printf("%f\n", tv.x);
 		}
 		Vec3f normal = cross(world_coords[2]-world_coords[0],world_coords[1]-world_coords[0]);
 		normal.normalize();
 		float intensity = normal*light;
 		TGAColor faceCol = TGAColor(intensity*255, intensity*255, intensity*255, 255);
 		if(intensity > 0)
-			triangle(screen_coords, zBuffer, image, faceCol);
+			triangle(screen_coords, zBuffer, tex_coords, *texture, image, faceCol);
 	}
 	
 
@@ -84,7 +92,7 @@ Vec3f barycentric(Vec3f *pts, Vec3f P){
 	return Vec3f(-1, 1, 1);
 }
 
-void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
+void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, TGAImage &image, TGAColor color){
 
 	Vec2f boxMin(image.get_width() - 1, image.get_height() - 1);
 	Vec2f boxMax(0,0);
@@ -110,7 +118,9 @@ void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
 				p.z += pts[i].z*bary[i];
 			if(zBuffer[int(p.x+p.y*WIDTH)] <= p.z){
 				zBuffer[int(p.x+p.y*WIDTH)] = p.z;
-				image.set(p.x,p.y,color);
+				// figure color
+				TGAColor tex_color = texture.get(int(texCoords[0].x*texture.get_width()),int(texCoords[0].y*texture.get_height()));
+				image.set(p.x,p.y,tex_color);
 			}
 		}
 	}	
