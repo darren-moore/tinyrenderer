@@ -12,8 +12,8 @@ const TGAColor WHITE = TGAColor(255, 255, 255, 255);
 const TGAColor RED   = TGAColor(255, 0,   0,   255);
 const TGAColor GREEN = TGAColor(0, 255, 0, 255);
 const TGAColor BLUE = TGAColor(0, 0, 255, 255);
-const int WIDTH = 700;
-const int HEIGHT = 700;
+const int WIDTH = 1000;
+const int HEIGHT = 1000;
 
 Model *model = NULL;
 
@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
 		Vec3f world_coords[3];
 		for (int j=0; j<3; j++){
 			Vec3f fv = model->vert(face[j]); // face vert
-			screen_coords[j] = Vec3f((fv.x+1) * WIDTH/2, (fv.y+1) * HEIGHT/2, fv.z);
+			screen_coords[j] = Vec3f(int((fv.x+1.) * WIDTH/2.), int((fv.y+1.) * HEIGHT/2.), fv.z);
 			world_coords[j] = fv;
 		}
 		Vec3f normal = cross(world_coords[2]-world_coords[0],world_coords[1]-world_coords[0]);
@@ -72,17 +72,16 @@ Vec3f barycentric(Vec3f *pts, Vec3f P){
 	// (1-u-v, u, v)
 	Vec3f a = Vec3f(pts[2].x - pts[0].x, pts[1].x - pts[0].x, pts[0].x - P.x);
 	Vec3f b = Vec3f(pts[2].y - pts[0].y, pts[1].y - pts[0].y, pts[0].y - P.y);
-	
+
 	// Solve linear system with cross prod.
 	Vec3f u = cross(a,b);
 	// Get (u, v, 1)
-
+	//printf("%f,%f,%f\n",u.x,u.y,u.z);
 	// if u[2] < 1, degenerate case, else normalize & return
-	if(std::abs(u.z) < 1)
-		return Vec3f(-1, 1, 1);
-	else
-		return Vec3f(1. - (u.x + u.y)/u.z, u.y/u.z, u.x/u.z);
+	if(std::abs(u.z) > 1e-2)
+		return Vec3f(1.f - (u.x + u.y)/u.z, u.y/u.z, u.x/u.z);
 
+	return Vec3f(-1, 1, 1);
 }
 
 void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
@@ -106,10 +105,11 @@ void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
 			Vec3f bary = barycentric(pts, p);
 			if(bary.x<0||bary.y<0||bary.z<0) continue;
 			// Gather z-value of p
+			p.z = 0;
 			for(int i=0; i<3; i++)
 				p.z += pts[i].z*bary[i];
-			if(zBuffer[int(p.x+p.y*WIDTH)] < p.z){
-				//zBuffer[int(p.x+p.y*WIDTH)] = p.z;
+			if(zBuffer[int(p.x+p.y*WIDTH)] <= p.z){
+				zBuffer[int(p.x+p.y*WIDTH)] = p.z;
 				image.set(p.x,p.y,color);
 			}
 		}
