@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 
 #include "tgaimage.h"
 #include "model.h"
@@ -17,10 +18,19 @@ const int HEIGHT = 700;
 Model *model = NULL;
 
 void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color);
-void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color);
+void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color);
+void triangle2(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color);
+
 
 int main(int argc, char** argv) {
 	TGAImage image(WIDTH, HEIGHT, TGAImage::RGB);
+	
+	// init zBuffer
+	float *zBuffer = new float[WIDTH*HEIGHT];
+	for(int i = 0; i < WIDTH*HEIGHT; i++){
+		zBuffer[i] = -std::numeric_limits<float>::max();
+	}
+
 	if(argc == 2){
 		model = new Model(argv[1]);
 	}
@@ -34,19 +44,19 @@ int main(int argc, char** argv) {
 	for (int i=0; i<model->nfaces(); i++){
 		//printf("%d\n",i);
 		std::vector<int> face = model->face(i);
-		Vec2i screen_coords[3];
+		Vec3f screen_coords[3];
 		Vec3f world_coords[3];
 		for (int j=0; j<3; j++){
 			Vec3f fv = model->vert(face[j]); // face vert
-			screen_coords[j] = Vec2i((fv.x+1) * WIDTH/2, (fv.y+1) * HEIGHT/2);
+			screen_coords[j] = Vec3f((fv.x+1) * WIDTH/2, (fv.y+1) * HEIGHT/2, fv.z);
 			world_coords[j] = fv;
 		}
-		Vec3f normal = (world_coords[2]-world_coords[0])^(world_coords[1]-world_coords[0]);
+		Vec3f normal = cross(world_coords[2]-world_coords[0],world_coords[1]-world_coords[0]);
 		normal.normalize();
 		float intensity = normal*light;
 		TGAColor faceCol = TGAColor(intensity*255, intensity*255, intensity*255, 255);
 		if(intensity > 0)
-			triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, faceCol);
+			triangle2(screen_coords, zBuffer, image, faceCol);
 	}
 	
 
@@ -57,35 +67,62 @@ int main(int argc, char** argv) {
 	delete model;
 	return 0;
 }
-/*
+
 Vec3f barycentric(Vec2i *pts, Vec2i P){
 	// Get barycentric coords of point P on triangle given by pts
 	// (1-u-v, u, v)
-	Vec3f a = Vec3f(pts[2][0] - pts[0][0], pts[1][0] - pts[0][0], pts[0][0] - P[0]);
-	Vec3f b = Vec3f(pts[2][1] - pts[0][1], pts[1][1] - pts[0][1], pts[0][1] - P[1]);
+	Vec3f a = Vec3f(pts[2].x - pts[0].x, pts[1].x - pts[0].x, pts[0].x - P.x);
+	Vec3f b = Vec3f(pts[2].y - pts[0].y, pts[1].y - pts[0].y, pts[0].y - P.y);
 	
 	// Solve linear system with cross prod.
-	Vec3f u = cross(a, b);
+	Vec3f u = cross(a,b);
 	// Get (u, v, 1)
 
 	// if u[2] < 1, degenerate case, else normalize & return
 	if(std::abs(u.z) < 1)
 		return Vec3f(-1, 1, 1);
 	else
-		return Vec3f(1. - (u.x + u.y)/u.z, u.x/u.z, u.x/u.z);
+		return Vec3f(1. - (u.x + u.y)/u.z, u.y/u.z, u.x/u.z);
 
 }
 
-void triangle2(Vec2i *pts, TGAImage &image, TGAColor color){
+void triangle2(Vec3f *pts3, float *zBuffer, TGAImage &image, TGAColor color){
+	Vec2i pts[3];
+	pts[0] = Vec2i(pts3[0].x, pts3[0].y);
+	pts[1] = Vec2i(pts3[1].x, pts3[1].y);
+	pts[2] = Vec2i(pts3[2].x, pts3[2].y);
+	
+
 	Vec2i boxMin(image.get_width() - 1, image.get_height() - 1);
 	Vec2i boxMax(0,0);
-	Vec2i clamp(image.get_width)
+	Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
+	
+	// Figure the box:
+	for(int i=0; i<3; i++){
+		for(int j=0; j<2; j++){
+			boxMin[j] = std::max(0, std::min(boxMin[j], pts[i][j]));
+			boxMax[j] = std::min(clamp[j], std::max(boxMax[j], pts[i][j]));
+		}
+	}
+	
+	// Walk the box and paint
+	Vec2i p;
+	for(p.x=boxMin.x; p.x<=boxMax.x; p.x++){
+		for(p.y=boxMin.y; p.y<=boxMax.y; p.y++){
+			Vec3f bary = barycentric(pts, p);
+			if(bary.x<0||bary.y<0||bary.z<0) continue;
+			image.set(p.x,p.y,color);
+		}
+	}	
 
 }
-*/
-void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color){
+
+void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
 	// Sort verts by y coord
 	// t0 smallest
+	Vec2i t0 = Vec2i(pts[0].x, pts[0].y);
+	Vec2i t1 = Vec2i(pts[1].x, pts[1].y);
+	Vec2i t2 = Vec2i(pts[2].x, pts[2].y);
 	
 	if(t0.y > t1.y)
 		std::swap(t0, t1);
