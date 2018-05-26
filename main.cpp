@@ -19,7 +19,6 @@ Model *model = NULL;
 
 void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color);
 void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color);
-void triangle2(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color);
 
 
 int main(int argc, char** argv) {
@@ -56,7 +55,7 @@ int main(int argc, char** argv) {
 		float intensity = normal*light;
 		TGAColor faceCol = TGAColor(intensity*255, intensity*255, intensity*255, 255);
 		if(intensity > 0)
-			triangle2(screen_coords, zBuffer, image, faceCol);
+			triangle(screen_coords, zBuffer, image, faceCol);
 	}
 	
 
@@ -68,7 +67,7 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-Vec3f barycentric(Vec2i *pts, Vec2i P){
+Vec3f barycentric(Vec3f *pts, Vec3f P){
 	// Get barycentric coords of point P on triangle given by pts
 	// (1-u-v, u, v)
 	Vec3f a = Vec3f(pts[2].x - pts[0].x, pts[1].x - pts[0].x, pts[0].x - P.x);
@@ -86,88 +85,38 @@ Vec3f barycentric(Vec2i *pts, Vec2i P){
 
 }
 
-void triangle2(Vec3f *pts3, float *zBuffer, TGAImage &image, TGAColor color){
-	Vec2i pts[3];
-	pts[0] = Vec2i(pts3[0].x, pts3[0].y);
-	pts[1] = Vec2i(pts3[1].x, pts3[1].y);
-	pts[2] = Vec2i(pts3[2].x, pts3[2].y);
-	
+void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
 
-	Vec2i boxMin(image.get_width() - 1, image.get_height() - 1);
-	Vec2i boxMax(0,0);
-	Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
+	Vec2f boxMin(image.get_width() - 1, image.get_height() - 1);
+	Vec2f boxMax(0,0);
+	Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
 	
 	// Figure the box:
 	for(int i=0; i<3; i++){
 		for(int j=0; j<2; j++){
-			boxMin[j] = std::max(0, std::min(boxMin[j], pts[i][j]));
+			boxMin[j] = std::max(0.f, std::min(boxMin[j], pts[i][j]));
 			boxMax[j] = std::min(clamp[j], std::max(boxMax[j], pts[i][j]));
 		}
 	}
 	
 	// Walk the box and paint
-	Vec2i p;
+	Vec3f p;
 	for(p.x=boxMin.x; p.x<=boxMax.x; p.x++){
 		for(p.y=boxMin.y; p.y<=boxMax.y; p.y++){
 			Vec3f bary = barycentric(pts, p);
 			if(bary.x<0||bary.y<0||bary.z<0) continue;
-			image.set(p.x,p.y,color);
+			// Gather z-value of p
+			for(int i=0; i<3; i++)
+				p.z += pts[i].z*bary[i];
+			if(zBuffer[int(p.x+p.y*WIDTH)] < p.z){
+				//zBuffer[int(p.x+p.y*WIDTH)] = p.z;
+				image.set(p.x,p.y,color);
+			}
 		}
 	}	
 
 }
 
-void triangle(Vec3f *pts, float *zBuffer, TGAImage &image, TGAColor color){
-	// Sort verts by y coord
-	// t0 smallest
-	Vec2i t0 = Vec2i(pts[0].x, pts[0].y);
-	Vec2i t1 = Vec2i(pts[1].x, pts[1].y);
-	Vec2i t2 = Vec2i(pts[2].x, pts[2].y);
-	
-	if(t0.y > t1.y)
-		std::swap(t0, t1);
-	if(t0.y > t2.y)
-		std::swap(t0, t2);
-	if(t1.y > t2.y)
-		std::swap(t1, t2);
-	
-	// We use Bressenham's algo on two lines at once.
-	// First up to t1, then to t2.
-
-	for(int y = t0.y; y <= t1.y; y++){
-		float t_t1 = (y-t0.y) / (float)(t1.y-t0.y + .01);
-		float t_t2 = (y-t0.y) / (float)(t2.y-t0.y + .01);
-		int x_t1 = t0.x*(1.-t_t1) + t1.x*t_t1; 
-		int x_t2 = t0.x*(1.-t_t2) + t2.x*t_t2;	
-		int xLeft = x_t2;
-		int xRight = x_t1;
-		
-		// Need to fill in the right direction!
-		if(xRight < xLeft)
-			std::swap(xLeft,xRight);
-		// Fill in w/ horiz line
-		for (int xWalk = xLeft; xWalk <= xRight; xWalk++){
-			image.set(xWalk, y, color);
-		}
-	}
-
-	for(int y = t1.y; y <= t2.y; y++){
-		float t_t1 = (y-t1.y) / (float)(t2.y-t1.y + .01);
-		float t_t2 = (y-t0.y) / (float)(t2.y-t0.y + .01);
-		int x_t1 = t1.x*(1.-t_t1) + t2.x*t_t1;
-		int x_t2 = t0.x*(1.-t_t2) + t2.x*t_t2;	
-		int xLeft = x_t2;
-		int xRight = x_t1;
-		if(xRight < xLeft)
-			std::swap(xLeft,xRight);
-		// Fill in w/ horiz line
-		for (int xWalk = xLeft; xWalk <= xRight; xWalk++){
-			image.set(xWalk, y, color);
-		}
-	}
-
-
-}
 
 void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color){
 	// We use Bressenham's algo
