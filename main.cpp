@@ -24,6 +24,12 @@ void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, T
 
 int main(int argc, char** argv) {
 	TGAImage image(WIDTH, HEIGHT, TGAImage::RGB);
+	TGAColor bg(83,41,104,255);
+	for(int x = 0; x<image.get_width(); x++){
+		for(int y = 0; y<image.get_height();y++){
+			image.set(x,y,bg);
+		}
+	}
 	// init zBuffer
 	float *zBuffer = new float[WIDTH*HEIGHT];
 	for(int i = 0; i < WIDTH*HEIGHT; i++){
@@ -39,7 +45,7 @@ int main(int argc, char** argv) {
 		texture->read_tga_file("obj/african_head_diffuse.tga");	
 	}
 	
-	Vec3f light = Vec3f(0, 1, -1);
+	Vec3f light = Vec3f(0, 0, -1);
 	light.normalize();
 	// Model rendering
 	for (int i=0; i<model->nfaces(); i++){
@@ -129,7 +135,7 @@ void triangle(Vec3f *pts, float *zBuffer, Vec2f *texCoords, TGAImage &texture, T
 				zBuffer[int(p.x+p.y*WIDTH)] = p.z;
 				// figure color. Use bary coords in texture space to interp
 				Vec2f uv = bary2Cart(texCoords, bary);
-				TGAColor tex_color = texture.get(int((1-uv.x)*texture.get_width()),int((1-uv.y)*texture.get_height()));
+				TGAColor tex_color = texture.get(int((uv.x)*texture.get_width()),int((uv.y)*texture.get_height()));
 				tex_color.r *= intensity; tex_color.g *= intensity; tex_color.b*=intensity;
 				image.set(p.x,p.y,tex_color);
 			}
